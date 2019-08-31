@@ -1,19 +1,17 @@
-package gmail
+package providers
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"math/rand"
-
-	"net"
-	"net/http"
-
 	"github.com/pkg/browser"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+	"math/rand"
+	"net"
+	"net/http"
 )
 
 const (
@@ -58,7 +56,7 @@ func makeChallenge(v *string) string {
 }
 
 // New implements OAuth2 installed application flow and returns a gmail service client.
-func New() *gmail.Service {
+func (p *ProviderGmail)Login() {
 	srv, c := createResponseListener()
 	defer srv.Shutdown(context.Background())
 	config := &oauth2.Config{
@@ -98,5 +96,24 @@ func New() *gmail.Service {
 	if err != nil {
 		panic(err)
 	}
-	return client
+
+	p.Service = client
+}
+
+func (p *ProviderGmail)GetEmails() map[string] interface{}{
+	p.Service.Users.Messages.List("me")
+	return map[string]interface{}{
+		"Name": "Wednesday",
+		"Age":  6,
+		"Parents": []interface{}{
+			"Gomez",
+			"Morticia",
+		},
+	}
+}
+
+func NewInstance() Provider {
+	p := ProviderGmail{}
+	p.Login()
+	return &p
 }
