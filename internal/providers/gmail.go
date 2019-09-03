@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"github.com/pkg/browser"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -19,6 +20,8 @@ const (
 	googleOauth2Secret = "aSPhfsqxCRSr1cU8RNWZ-r9S"
 	oauth2Endpoint     = "/oauth2/"
 )
+
+var prevPage = ""
 
 func createResponseListener() (*http.Server, *chan string) {
 	l, err := net.Listen("tcp", "127.0.0.1:")
@@ -56,7 +59,7 @@ func makeChallenge(v *string) string {
 }
 
 // New implements OAuth2 installed application flow and returns a gmail service client.
-func (p *ProviderGmail)Login() {
+func (p *GmailProvider) Login() {
 	srv, c := createResponseListener()
 	defer srv.Shutdown(context.Background())
 	config := &oauth2.Config{
@@ -100,20 +103,35 @@ func (p *ProviderGmail)Login() {
 	p.Service = client
 }
 
-func (p *ProviderGmail)GetEmails() map[string] interface{}{
-	p.Service.Users.Messages.List("me")
-	return map[string]interface{}{
-		"Name": "Wednesday",
-		"Age":  6,
-		"Parents": []interface{}{
-			"Gomez",
-			"Morticia",
-		},
+func (p *GmailProvider) GetEmails(pageSize int64, pageId string) (GetEmailResponse, error) {
+	l, err := p.Service.Users.Messages.List("me").MaxResults(pageSize).PageToken(pageId).Do()
+
+	if err != nil || l == nil || l.HTTPStatusCode != http.StatusOK{
+		return GetEmailResponse{}, err
 	}
+
+	if prevPage == "" {
+		prevPage = l.NextPageToken
+	}
+
+	res, err := json.Marshal(l.Messages)
+
+	if err != nil {
+		return GetEmailResponse{}, err
+	}
+
+	resObj := GetEmailResponse{
+		ResultSize: l.ResultSizeEstimate,
+		NextPage:   l.NextPageToken,
+		PrevPage:   prevPage,
+		Results: 	string(res),
+	}
+
+	return resObj, nil
 }
 
-func NewInstance() Provider {
-	p := ProviderGmail{}
+func NewGmailInstance() *GmailProvider {
+	p := &GmailProvider{}
 	p.Login()
-	return &p
+	return p
 }
